@@ -12,10 +12,10 @@ This skill serves as the primary runbook for configuring and executing the ICON 
 
 Follow these steps when preparing or deploying an ICON simulation:
 
-1. **Configure the Environment**
-   Set up your execution directory on the Lustre parallel filesystem (`/shared`), not on the NFS `/home`. Ensure your Slurm script includes `ulimit -s unlimited`.
+1. **Configure the Environment (Python-First Workflow)**
+   Do not manually edit execution templates. Instead, modify the centralized `ensemble_config.ini` file and execute the relevant Python setup script (e.g., `setup_free_run.py` or `setup_ensemble.py`). These scripts will automatically utilize `ClimPy` to safely patch variables and bootstrap the Lustre `/shared` output directories.
+   👉 *Reference:* [Python Configuration Workflow](./references/python_configuration.md)
    👉 *Reference:* [HPC Execution & Slurm Setup](./references/hpc_execution.md)
-   👉 *Example:* [Slurm Script Template](./examples/exp.testsuite.dust_rad_base.txt)
 
 2. **Validate the Configuration**
    Before submitting to Slurm, run the validation helper script against your target run directory to ensure symlinks and inputs are structurally sound.
@@ -24,7 +24,7 @@ Follow these steps when preparing or deploying an ICON simulation:
    ```
 
 3. **Submit the Job**
-   Submit the script via `sbatch`. If deploying an ensemble, utilize a Slurm array wrapper.
+   Submit the rendered SBATCH script (e.g., `sbatch run_free_run.slurm`). If deploying an ensemble, ensure the setup script correctly populated the Slurm array bounds.
 
 4. **Validate Success (Post-Run)**
    Do not assume a `0` exit code means the model ran successfully. 
