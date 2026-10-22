@@ -7,13 +7,19 @@ description: Runbook for Python workflows in environmental and atmospheric model
 
 This skill provides operational standards for developing and running Python workflows in atmospheric and environmental modeling on HPC clusters and cloud instances.
 
+> [!CRITICAL]
+> **DEDICATED ENVIRONMENT RULE (NO SYSTEM PYTHON):**
+> **NEVER** use, install into, or modify the host OS system Python (`/usr/bin/python3`, `/usr/lib/python3*`, or `--user` installations under `~/.local` tied to system Python).
+> All modeling tools, workflows, batch scripts, and Fortran/C Python extensions **MUST** run within a dedicated Conda/Mamba environment.
+> The standard modeling environment is **`py312`**, initialized via `gogomamba` in `~/.commonrc`.
+
 > **CRITICAL INSTRUCTION (Path Parameterization & Asking Rule):**
 > Never hardcode user home paths or mounts. Use parameterized paths (`${HOME}`, `${SCRATCH}`, `${DATA_ROOT}`).
 > If any required environment script, repository path, or directory is undefined or ambiguous, **prompt and ask the user** before proceeding.
 
 ---
 
-## 1. Environment Activation (`gogomamba`)
+## 1. Environment Activation (`gogomamba` & `py312`)
 
 Always activate the designated scientific Python environment through the user environment loader:
 
@@ -22,8 +28,8 @@ Always activate the designated scientific Python environment through the user en
 source "${ENV_SCRIPT:-$HOME/.commonrc}"
 gogomamba
 
-# Target environment default is py311 (or activate custom if needed)
-mamba activate "${CONDA_ENV:-py311}"
+# Target environment default is py312 (or activate project-specific env if needed)
+mamba activate "${CONDA_ENV:-py312}"
 ```
 
 ### Slurm Jobs & Subshells
@@ -33,24 +39,27 @@ In batch scripts (`.slurm`, `.sh`) and Python subshells (`subprocess.run`), expl
 #!/bin/bash
 source "${ENV_SCRIPT:-$HOME/.commonrc}"
 gogomamba
-mamba activate "${CONDA_ENV:-py311}"
+mamba activate "${CONDA_ENV:-py312}"
 ```
 
 ---
 
 ## 2. Package Management: Mamba-First Policy
 
-Environmental modeling relies on native C/Fortran shared libraries (`libnetcdf`, `eccodes`, `hdf5`, `proj`, `geos`). Mixing `pip` can cause binary ABI incompatibilities.
+Environmental modeling relies on native C/Fortran shared libraries (`libnetcdf`, `eccodes`, `hdf5`, `proj`, `geos`). Mixing system pip can cause severe ABI incompatibilities and host contamination.
 
+* **Dedicated Environments Only**: Environments reside under `${MINIFORGE_DIR:-/scratch/p26002/sosipov/apps/miniforge3}/envs/` or `${CONDA_ENVS_DIR}`. System Python must remain completely untouched.
 * **Primary (`mamba`)**: Always install packages via conda-forge:
   ```bash
-  mamba install -c conda-forge <package-name>
+  mamba install -n "${CONDA_ENV:-py312}" -c conda-forge <package-name>
   ```
-* **Secondary (`pip`)**: Only use `pip` if the package is unavailable on conda-forge or for local repository editable development:
+* **Secondary (`pip`)**: Only use `pip` if the package is unavailable on conda-forge or for compiling local repository extensions (e.g. `pyPDAF`, `mpi4py` against cluster Intel MPI):
   ```bash
-  pip install -e .
+  # ALWAYS ensure the dedicated environment is active before running pip
+  mamba activate "${CONDA_ENV:-py312}"
+  pip install --no-deps --no-build-isolation -e .
   ```
-* **No ad-hoc environments**: Do not create throwaway virtualenvs in `$HOME`. Parameterize environment paths under `${MINIFORGE_DIR:-$HOME/apps/miniforge3}/envs/`.
+* **No ad-hoc virtualenvs**: Do not create throwaway virtualenvs or pip user-installs in `$HOME/.local`.
 
 ---
 
