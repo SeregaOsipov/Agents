@@ -70,7 +70,40 @@ WPS relies directly on the compiled WRF I/O libraries (such as `libwrfio_nf.a`) 
 
 ---
 
-## 2. Operational Execution Workflow
+## 2. Domain Design & Geogrid Execution (`geogrid.exe`)
+
+`geogrid.exe` interpolates static terrestrial fields (topography, land use categories, soil texture, albedo, vegetation fraction, urban parameters, and erodibility) onto the model horizontal grids. Because these fields are time-independent, `geogrid.exe` is run once per domain configuration, and the produced `geo_em.d0*.nc` files are stored and re-used across forecast cycles.
+
+### A. Nesting Rules & Grid Constraints
+1. **Grid Ratio:** `parent_grid_ratio` must be an odd integer (typically 3 or 5). For a 10 km to 2 km nest, `parent_grid_ratio = 5`.
+2. **Dimension Formula:** For nested domains, the number of mass points along each axis must satisfy:
+   $$\frac{e\_we - 1}{\text{ratio}} \in \mathbb{Z}^+ \quad \text{and} \quad \frac{e\_sn - 1}{\text{ratio}} \in \mathbb{Z}^+$$
+   For example, with ratio 5, valid nest sizes are $121, 126, 131, 146, 176, \dots$
+3. **Boundary Buffers:** The nested domain must maintain at least a 10–15 parent-cell buffer from the parent domain boundaries to prevent numerical instabilities and reflection at the lateral boundaries.
+
+### B. High-Resolution Static Geodata Requirements
+For high-resolution simulations ($\le 3\text{ km}$, e.g. 2 km over Qatar), coarse 5-arc-minute/10-arc-minute static data is unacceptable. Real high-resolution datasets must be installed:
+- `topo_gmted2010_30s`: Real 30-arc-second (~900 m) topography.
+- `modis_landuse_20class_30s_with_lakes`: Real 30-arc-second MODIS land cover.
+- `soiltype_top_30s` & `soiltype_bot_30s`: 16-category soil texture.
+- `erod`: Global surface erodibility for WRF-Chem dust emissions (AFWA/GOCART schemes).
+- Table selection: When chemistry/dust is active, link `GEOGRID.TBL.ARW_CHEM`.
+
+To download and install the missing high-resolution datasets:
+```bash
+bash scripts/download_wps_geog_highres.sh /scratch/p26002/sosipov/Data/WPS_GEOG
+```
+
+### C. Automated Domain Generation via Pipeline
+```bash
+# Generate domain grids interactively or via CLI
+python -m oper_forecast.cli run-geogrid --config config/models/wrfchem_cams_qatar_2dom.yaml [--force]
+```
+The pipeline automatically writes `namelist.wps` with `&geogrid`, links `GEOGRID.TBL.ARW_CHEM`, executes `geogrid.exe`, and persists the resulting `geo_em.d01.nc` and `geo_em.d02.nc` files to `domain.geo_em_dir`.
+
+---
+
+## 3. Operational Execution Workflow
 
 ### A. Execution Workspace & Grid Inputs
 *Prompt the user for `$WPS_WORK_DIR` and `$GEO_EM_DIR` if not defined.*
@@ -181,7 +214,7 @@ These tools write the binary record structure directly via `wrf_write` or Python
 
 ---
 
-## 3. Common Diagnostics & Troubleshooting
+## 4. Common Diagnostics & Troubleshooting
 1. **Compute-Heavy Jobs on Login Nodes:** If processes are killed with Signal 9 (`Killed`), the Linux OOM-killer terminated them because login nodes have strict memory limits. Always submit compute jobs to Slurm compute nodes.
 2. **AWS ParallelCluster Protected Mode & Slurm Accounting:**
    - If `sbatch` fails with `AssocGrpSubmitJobsLimit`: check `sacctmgr show assoc where account=${ACCOUNT} format=Account,User,GrpSubmit`. If `GrpSubmit=0`, account submission is restricted.
@@ -192,7 +225,7 @@ These tools write the binary record structure directly via `wrf_write` or Python
 
 ---
 
-## 4. Automated CAMS Hybrid-Level WPS Conversion (`cams_to_wps.py`)
+## 5. Automated CAMS Hybrid-Level WPS Conversion (`cams_to_wps.py`)
 
 In the operational forecasting pipeline, `ungrib.exe` is bypassed for ECMWF CAMS analysis and forecasts:
 1. **Direct WPS Binary Generation**: `cams_to_wps.py` unpacks 137 ECMWF hybrid sigma-pressure model levels and surface NetCDFs directly into Fortran unformatted WPS binary files (`FILE:YYYY-MM-DD_HH`).
