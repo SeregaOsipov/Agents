@@ -83,7 +83,7 @@ Target run directory: `${WRF_WORK_DIR}/${RUN_NAME}/`
 2. Symlink all static physics lookup tables (`*.TBL`, `*.bin`, `*.dat`, `*.asc`, `constants.asc`) from `${TEMPLATE_DIR}/`.
 3. Symlink binaries: `wrf.exe`, `real.exe`, `ndown.exe` from `${TEMPLATE_DIR}/` (or `${WRF_DIR}/main/`).
 4. Symlink auxiliary boundary files:
-   - `wrfchemi_d01 -> ${EMISSIONS_FILE}`
+   - `wrfchemi_d01 -> ${EMISSIONS_FILE}` (generated via the [`hermes`](../hermes/SKILL.md) skill)
    - `wrflowinp_d01 -> ${LOWINP_FILE}`
    - `wrffdda_d01 -> ${FDDA_FILE}`
 
