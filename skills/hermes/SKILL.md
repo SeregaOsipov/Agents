@@ -18,7 +18,7 @@ This skill documents the end-to-end operational workflow for downloading raw inv
 
 | Variable | Description | Default / Example Location |
 | :--- | :--- | :--- |
-| `${EMISSIONS_REPO}` | Unified project repo containing `conf/`, `data/`, `downloading/`, `preproc/`, `jobs/`, `postproc/`, and `models/hermesv3_gr` | `${HOME}/workspace/emissions-inventory` |
+| `${EMISSIONS_REPO}` | Unified project repo containing `config.yaml`, `cli/`, `conf/`, `data/`, `downloading/`, `preproc/`, `jobs/`, `postproc/`, and `models/hermesv3_gr` | `${HOME}/workspace/emissions-inventory` |
 | `${HERMES_REPO}` | HERMESv3_GR core source submodule (`Serega.Osipov/hermesv3_gr`, branch `middle_east_branch`) | `${EMISSIONS_REPO}/models/hermesv3_gr` |
 | `${EMISSIONS_DATA_ROOT}` | Dedicated high-capacity storage root for raw & preprocessed emissions | `/HDD1/Data/emissions` |
 | `${HERMES_WORK_DIR}` | HERMES runtime root holding `HERMES_IN/`, `datasets/`, `HERMES_OUT/` | `${EMISSIONS_DATA_ROOT}/hermes` |
@@ -106,19 +106,20 @@ python -u "${EMISSIONS_REPO}/preproc/edgar_v81_preproc.py" --stream v81_FT2022_V
 
 ### B. CAMS-GFAS (`GFASv12`, ADS `cams-global-fire-emissions-gfas`)
 > [!IMPORTANT]
-> 1. **Multi-Day Chunk Packing**: Each day has `46` fields (~1.19 GB uncompressed GRIB1). Use `--chunk_days 16` (`736` fields/request, well under ADS's `10,000`-field limit) and `grib_copy [dataDate]` splitting so a full year takes ~23 MARS requests instead of 366 sequential queue waits.
+> 1. **Multi-Day Chunk Packing**: Each day has `46` fields (~`1.19 GB` uncompressed GRIB1). Use `--chunk_days 4` (`184` fields / ~`4.4 GB` per request, avoiding ADS `IncompleteRead` connection drops seen on larger multi-GB chunks while staying well under ADS's `10,000`-field limit) and `grib_copy [dataDate]` splitting instead of single-day queue waits.
 > 2. **Server-Side Duplicate GRIB Records**: On isolated dates (e.g., `2023-05-24` with `64` records and `2023-06-03` with `48` records), Copernicus ADS returns duplicate `paramId` messages that cause `cdo copy` to fail (`Parameter not defined at timestep 1`). Both `download_CAMS_GFAS.py` and `gfas12_preproc.py` run `ensure_unique_grib_params` (`grib_ls` + `grib_copy`) to retain the first record per `paramId` (`46` unique parameters).
-> 3. **366th Timestep**: Full-year runs configured with `output_timestep_num = 366` (e.g., `2023/01/01` + `366` daily steps) also read `YYYY+1-01-01` (`ga_20240101.nc`).
+> 3. **GRIB1 & GRIB2 Compatibility (`gfas12_preproc.py`)**: Maps GRIB2 variable names via NetCDF `param` code attributes when `cdo` does not emit `var<code>` names, and fills `mami` (`param 119`) from `apt` (`param 120`) when `119` is absent in GRIB2.
+> 4. **366th Timestep**: Full-year runs configured with `output_timestep_num = 366` (e.g., `2023/01/01` + `366` daily steps) also read `YYYY+1-01-01` (`ga_20240101.nc`).
 
 ```bash
-python -u "${EMISSIONS_REPO}/downloading/download_CAMS_GFAS.py" --start_date 2023-01-01 --end_date 2024-01-01 --workers 4 --chunk_days 16
+python -u "${EMISSIONS_REPO}/downloading/download_CAMS_GFAS.py" --start_date 2023-01-01 --end_date 2024-01-01 --workers 4 --chunk_days 4
 python -u "${EMISSIONS_REPO}/preproc/gfas12_preproc.py" --start_date 2023-01-01 --end_date 2024-01-01 --workers 8
 ```
 
 ### C. CAMS-GLOB-SHIP v3.2 (`2022`) & Static Annual/Monthly Inventories
 ```bash
 # Daily shipping (APs + HTAPv3-speciated VOCs; skips existing outputs unless --overwrite)
-python -u "${EMISSIONS_REPO}/preproc/cams_glob_ship_v32_preproc.py" --start_date 2022-01-01 --end_date 2022-12-31
+python -u "${EMISSIONS_REPO}/preproc/cams_glob_ship_v32_preproc.py" --start_date 2022-01-01 --end_date 2022-12-31 --workers 8
 python -u "${EMISSIONS_REPO}/preproc/cams_glob_ship_v32_voc_preproc.py" --start_date 2022-01-01 --end_date 2022-12-31
 
 # Monthly / yearly static inventories
@@ -130,22 +131,45 @@ python -u "${EMISSIONS_REPO}/preproc/wiedinmyer_preproc.py"
 
 ## 4. Running HERMESv3_GR & Output Verification
 
-Launch via [jobs/](file:///home/osipovs/workspace/emissions-inventory/jobs) (auto-selects `srun` on Slurm or `mpirun -np "${NTASKS}"` locally):
+Launch via `${EMISSIONS_REPO}/jobs/` (auto-selects `srun` on Slurm or `mpirun -np "${NTASKS}"` locally):
 ```bash
 NTASKS=24 bash "${EMISSIONS_REPO}/jobs/hermesv3_gr_thofa_2023.sh" > "${HERMES_WORK_DIR}/hermes_thofa_2023.log" 2>&1
 # Or full-year 2023:
 NTASKS=24 bash "${EMISSIONS_REPO}/jobs/hermesv3_gr_2023.sh" > "${HERMES_WORK_DIR}/hermes_2023.log" 2>&1
 ```
 
+### Domain-Agnostic `geo_em` CLI & 2023 Climatology (`cli/`)
+For arbitrary WRF `geo_em.d0*.nc` grids (extracting LCC projection metadata directly from `geo_em`, guarding cold-start `temporal_coords.nc` / `timezones.nc` / shapefile initialization with an `fcntl` lock, mapping Feb-29 shipping to 2022-02-28, and supporting `--gfas-mode` `nrt_persist` | `historical` | `off`):
+```bash
+bash "${EMISSIONS_REPO}/jobs/run_hermes_wrf_domain.sh" \
+  --start-date "${START_DATE}" \
+  --days "${DAYS}" \
+  --geo-em "${GEO_EM_FILE}" \
+  --out-file "${OUT_FILE}" \
+  --cluster "${CLUSTER_PROFILE}" \
+  --ntasks "${NTASKS}" \
+  --gfas-mode nrt_persist
+
+# Build 366-day 2023 baseline fallback NetCDFs per domain:
+python "${EMISSIONS_REPO}/cli/build_climatology_2023.py" \
+  --geo-em-dir "${WPS_DOMAIN_DIR}" \
+  --out-dir "${CLIM_OUT_DIR}" \
+  --cluster "${CLUSTER_PROFILE}" \
+  --ntasks "${NTASKS}" \
+  --gfas-mode historical
+```
+
 ### Known Pitfalls & Debugging
 1. **First-Run `temporal_coords.nc` MPI Barrier Race Condition (`grid_lcc.py`)**:
-   In `models/hermesv3_gr/hermesv3_gr/modules/grids/grid_lcc.py`, `settings.comm.Barrier()` is indented *inside* `if not os.path.exists(self.coords_netcdf_file):`. When launching with `NTASKS > 1` on a clean auxiliary directory (`erase_auxiliary_files = 1` or a new domain), a slower rank can see the initial file created by Rank 0 before Rank 0 overwrites it with `cell_area`, skip the barrier, hit `FileNotFoundError`, and leave remaining ranks deadlocked at `Barrier()`. If starting from an empty `auxiliary_files/` directory, initialize once with `NTASKS=1` until `temporal_coords.nc` exists (or re-run once after Rank 0 finishes writing `temporal_coords.nc`).
+   In `models/hermesv3_gr/hermesv3_gr/modules/grids/grid_lcc.py`, `settings.comm.Barrier()` is indented *inside* `if not os.path.exists(self.coords_netcdf_file):`. When launching with `NTASKS > 1` on a clean auxiliary directory (`erase_auxiliary_files = 1` or a new domain), a slower rank can see the initial file created by Rank 0 before Rank 0 overwrites it with `cell_area`, skip the barrier, hit `FileNotFoundError`, and leave remaining ranks deadlocked at `Barrier()`. If starting from an empty `auxiliary_files/` directory, initialize once with `NTASKS=1` until `temporal_coords.nc` exists (or re-run once after Rank 0 finishes writing `temporal_coords.nc`), or use `cli/generate_wrfchemi.py` which automates `--first_time True` under `fcntl` locking.
 2. **Rank-Count Tied Weight Matrices**:
    Regridding weight files are named `Weight_Matrix_<inventory>_<NTASKS>.nc` under `WRF_CHEM_<domain_type>_<resolution>_<nx>_<ny>/`. Keeping `NTASKS=24` reuses existing weight matrices and avoids re-computing them.
 3. **Middle East Weekend Profile**:
    Ensure `p_week = <input_dir>/data/profiles/temporal/TemporalProfile_Weekly_islamic.csv` (Friday–Saturday weekend) is set in `.conf`.
 4. **PROJ stderr noise**:
    `ERROR 1: PROJ: proj_create_from_database: Open of .../share/proj failed` may appear during `PointGfasEmissionInventory` regridding due to deprecated `{'init': 'epsg:4326'}` CRS syntax in upstream `point_gfas_emission_inventory.py`; verify `timezones.nc` and output `E_*` fields directly.
+5. **Single-Invocation Multi-Step vs Day-by-Day Stepping (`hermes.py`)**:
+   Upstream `HermesGr` initializes daily/monthly inventories once at `start_date` and applies 3D temporal factors (`p_month`, `p_week`, `p_day`, `p_hour`) across `output_timestep_num`; use `end_date > start_date` or `cli/generate_wrfchemi.py` when daily-varying fire/shipping files must step day-by-day.
 
 ### Verification Checklist
 - Confirm `***** HERMESv3_GR simulation finished successfully *****` in Rank 0 log under `${HERMES_WORK_DIR}/HERMES_OUT/logs/`.
