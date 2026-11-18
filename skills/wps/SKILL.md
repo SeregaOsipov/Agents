@@ -24,6 +24,7 @@ This skill covers configuring, compiling, and running the WRF Preprocessing Syst
 | `$WRF_DIR` | Compiled WRF model directory | `${HOME}/Models/WRF` |
 | `$WPS_WORK_DIR` | Working scratch directory for WPS execution | `${SCRATCH}/simulations/WPS_run/oper_forecasting` |
 | `$GEO_EM_DIR` | Directory containing pre-computed `geo_em` grid files | `${DATA_ROOT}/IC_BC/` |
+| `$WPS_GEOG_DIR` | Static terrestrial dataset root (`topo_gmted2010_30s`, `erod`, etc.) | `${DATA_ROOT}/WPS_GEOG` |
 | `$ENV_SCRIPT` | HPC environment / module loader script | `${HOME}/.commonrc` or `/etc/profile.d/modules.sh` |
 | `$MODULE_ENV_CMD`| Environment initialization command or alias | `gogowrfchem` |
 
@@ -91,7 +92,7 @@ For high-resolution simulations ($\le 3\text{ km}$, e.g. 2 km over Qatar), coars
 
 To download and install the missing high-resolution datasets:
 ```bash
-bash scripts/download_wps_geog_highres.sh /scratch/p26002/sosipov/Data/WPS_GEOG
+bash scripts/download_wps_geog_highres.sh "${WPS_GEOG_DIR}"
 ```
 
 ### C. Automated Domain Generation via Pipeline

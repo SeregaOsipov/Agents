@@ -48,7 +48,7 @@ mamba activate "${CONDA_ENV:-py312}"
 
 Environmental modeling relies on native C/Fortran shared libraries (`libnetcdf`, `eccodes`, `hdf5`, `proj`, `geos`). Mixing system pip can cause severe ABI incompatibilities and host contamination.
 
-* **Dedicated Environments Only**: Environments reside under `${MINIFORGE_DIR:-/scratch/p26002/sosipov/apps/miniforge3}/envs/` or `${CONDA_ENVS_DIR}`. System Python must remain completely untouched.
+* **Dedicated Environments Only**: Environments reside under `${MINIFORGE_DIR:-${HOME}/apps/miniforge3}/envs/` or `${CONDA_ENVS_DIR}`. System Python must remain completely untouched.
 * **Primary (`mamba`)**: Always install packages via conda-forge:
   ```bash
   mamba install -n "${CONDA_ENV:-py312}" -c conda-forge <package-name>
@@ -102,6 +102,7 @@ Environmental modeling relies on native C/Fortran shared libraries (`libnetcdf`,
 Install `airblender` editable in your mamba env (`pip install --no-deps --no-build-isolation -e "${AIRBLENDER_DIR}"`, or `"${AIRBLENDER_DIR}[fetch]"` when donor download dependencies are needed) and run via CLI or Python API:
 ```bash
 airblender fetch-cams ...
+airblender fetch-merra2 --preset wrfchem ...   # presets: wrfchem | zittis_aot
 airblender cams2wrf ...
 ```
 

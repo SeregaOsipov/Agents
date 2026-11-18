@@ -27,6 +27,7 @@ This skill serves as the primary operational runbook for configuring, compiling,
 | `$EMISSIONS_FILE` | Anthropogenic chemistry emissions file | `${DATA_ROOT}/emissions/HERMESv3_...nc` |
 | `$LOWINP_FILE` | Lower boundary conditions file (SST, sea-ice updates) | `${DATA_ROOT}/IC_BC/wrflowinp_d02` |
 | `$FDDA_FILE` | Analysis nudging file (optional) | `${DATA_ROOT}/IC_BC/wrffdda_d02` |
+| `$TUV_DIR` | TUV photolysis lookup root (`DATAE1`, `DATAJ1`, `wrf_tuv_xsqy.nc`) | `${DATA_ROOT}/AirQuality/AQABA/TUV.phot` |
 | `$ENV_SCRIPT` | HPC environment / module loader script | `${HOME}/.commonrc` or `/etc/profile.d/modules.sh` |
 | `$MODULE_ENV_CMD`| Environment initialization command or alias | `gogowrfchem` |
 
@@ -94,10 +95,10 @@ Target run directory: `${WRF_WORK_DIR}/${RUN_NAME}/`
 
 1. Link analysis `met_em.d01.*.nc` files from WPS into the `run/` directory.
    *(If `nocolons = .true.` is enabled in `namelist.input`, link both colon and underscore variants, e.g. `met_em.d01.YYYY-MM-DD_HH_00_00.nc`).*
-2. Configure `namelist.input` matching WPS levels:
+2. Configure stage-split namelists matching WPS levels (`wrf_setup.py` renders `namelist.input.real` and `namelist.input.wrf`, and `wrf_real.py` switches `namelist.input -> namelist.input.real`):
    - For CAMS 137 model levels: `num_metgrid_levels = 138` (137 upper-air + 1 surface level).
    - For ECMWF 4-layer soil: `num_metgrid_soil_levels = 4`.
-   - **Crucial Namelist Setting for `real.exe`:** Set `chem_opt = 100` and `chem_in_opt = 0` so `real.exe` allocates all chemistry arrays in `wrfinput_d01` and `wrfbdy_d01` without attempting to read external `wrf_chem_input_d01`.
+   - **Crucial Namelist Setting for `real.exe` (`namelist.input.real`):** Set `chem_opt = 100`, `chem_in_opt = 0` across all domains, boundary-horizon `run_hours`, and automatic MPI decomposition (`! nproc_x = -1`, `! nproc_y = -1`) so `real.exe` allocates all chemistry arrays in `wrfinput_d0*` and `wrfbdy_d01` without attempting to read external `wrf_chem_input_d0*`.
 3. Reference Slurm Script (`runReal.sh`):
    ```bash
    #!/bin/bash -l
@@ -126,7 +127,7 @@ Target run directory: `${WRF_WORK_DIR}/${RUN_NAME}/`
 ### C. Chemical & Aerosol IC/BC Preparation (`AirBlender`)
 *Prompt the user for `$AIRBLENDER_DIR` (if not pip-installed) and `$CAMS_DIR` if not defined.*
 
-WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` (plus nested `wrfinput_d0*`) and `wrfbdy_d01` in-place using **`airblender`** (standalone package with zero `ClimPy`/`wrf-python` runtime dependency; optional `airblender[fetch]` also provides `airblender fetch-cams` / `fetch-eac4` / `fetch-merra2` for downloading raw donor fields):
+WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` (plus nested `wrfinput_d0*`) and `wrfbdy_d01` in-place using **`airblender`** (standalone package with zero `ClimPy`/`wrf-python` runtime dependency; optional `airblender[fetch]` also provides `airblender fetch-cams` / `fetch-eac4` / `fetch-merra2 --preset wrfchem` for downloading raw donor fields):
 
    - Inject CAMS reactive gases, aerosols, and `0.1°` greenhouse gases (`CO2`, `CH4`) via `airblender cams2wrf` (`airblender.wrf_icbc.run_wrf_icbc`, legacy wrapper `${AIRBLENDER_DIR}/cams2wrf_main.py`):
      - Primary donor streams: `ECMWF-CAMS_sfc_YYYYMMDD.nc`, `ECMWF-CAMS_ml_YYYYMMDD.nc`, and (when `cams_ghg: true`) `ECMWF-CAMS_ghg_YYYYMMDD.nc`.
@@ -147,16 +148,16 @@ airblender cams2wrf \
     --wrf_met_files_name_template "met_em.d01.{}.nc" \
     --wrf_met_files_date_format "%Y-%m-%d_%H_%M_%S"
 ```
-*(For NASA MERRA-2 use `airblender merra2wrf --scheme made_sorgam|gocart|gocart_dust|mosaic_8bin`, and for EMAC/MESSy use `airblender emac2wrf` with analogous arguments).*
+*(For NASA MERRA-2, download via `airblender fetch-merra2 --preset wrfchem` and inject with `airblender merra2wrf --scheme made_sorgam|gocart|gocart_dust|mosaic_8bin`; for EMAC/MESSy use `airblender emac2wrf` with analogous arguments).*
 
 > **Important Notes:**
 > 1. `airblender` (`cams2wrf` / `merra2wrf` / `emac2wrf`) modifies `wrfinput` and `wrfbdy` **in place (`r+` mode)**.
-> 2. **Photolysis Tables:** If using TUV photolysis (`phot_opt = 4`), ensure `DATAE1` and `DATAJ1` directories are populated from `${HOME}/Data/AirQuality/AQABA/DATAE1` (containing `1995Malicet_O3.txt`, `wmo85`, etc.).
+> 2. **Photolysis Tables:** If using TUV photolysis (`phot_opt = 4`), ensure `DATAE1` and `DATAJ1` directories are populated from `${TUV_DIR}/DATAE1` and `${TUV_DIR}/DATAJ1` (containing `1995Malicet_O3.txt`, `wmo85`, etc.).
 > 3. **Emissions Time Stamping:** When `io_style_emissions = 2`, WRF looks for `wrfchemi_d01_<date>`. The NetCDF `Times` variable in the emissions file must match the forecast cycle start date (`YYYY-MM-DD_00:00:00`).
-> 4. **Post-Injection Namelist Switch:** Immediately after IC/BC injection completes, update `chem_in_opt = 1, 1,` in `namelist.input` so `wrf.exe` reads the injected chemistry from `wrfinput_d01`.
+> 4. **Post-Injection Namelist Switch (`namelist.input.wrf`):** Immediately after IC/BC injection completes, `wrf_prep.py` updates `namelist.input.wrf` (`chem_in_opt = 1, ...` across all active domains + requested forward duration) and switches the active symlink `namelist.input -> namelist.input.wrf` (re-verified at launch in `runWrf.sh`) so `wrf.exe` reads the injected chemistry from `wrfinput_d0*`.
 
-### D. Namelist (`namelist.input`) Configuration
-Key namelist switches for operational chemistry forecasts:
+### D. Namelist (`namelist.input.real` / `namelist.input.wrf`) Configuration
+Key namelist switches for multi-domain operational chemistry forecasts (`namelist.input` symlinks to `namelist.input.real` for `real.exe` and `namelist.input.wrf` for `wrf.exe`):
 ```fortran
 &time_control
  run_days = ${RUN_DAYS},
@@ -175,6 +176,7 @@ Key namelist switches for operational chemistry forecasts:
 
 &domains
  max_dom = ${MAX_DOM},                   ! e.g. 2 for nested 10 km d01 + 2 km d02
+ nproc_x = ${NPROC_X}, nproc_y = ${NPROC_Y}, ! Optional explicit MPI topology in .wrf (commented out in .real)
  e_we = ${E_WE},
  e_sn = ${E_SN},
  e_vert = ${E_VERT},
@@ -182,14 +184,18 @@ Key namelist switches for operational chemistry forecasts:
  time_step = ${TIME_STEP},
 /
 
+&physics
+ gwd_opt = 1, 0,                         ! Subgrid orographic drag on coarse parent (d01) only
+/
+
 &chem
  chem_opt = ${CHEM_OPT},                 ! e.g. 100 for RADM2/MADE-SORGAM
- chem_in_opt = 1,                        ! Initialize chemistry from wrfinput (MUST be 1 for wrf.exe)
- gas_ic_opt = 1, gas_bc_opt = 1,         ! Ingest gas IC & BC from wrfinput/wrfbdy
- aer_ic_opt = 1, aer_bc_opt = 1,         ! Ingest aerosol IC & BC from wrfinput/wrfbdy
- have_bcs_chem = .true.,                 ! Read chemistry boundary conditions from wrfbdy
+ chem_in_opt = 1, 1,                     ! 0, 0 in namelist.input.real; 1, 1 in namelist.input.wrf
+ gas_ic_opt = 1, 1, gas_bc_opt = 1, 1,   ! Ingest gas IC & BC from wrfinput/wrfbdy
+ aer_ic_opt = 1, 1, aer_bc_opt = 1, 1,   ! Ingest aerosol IC & BC from wrfinput/wrfbdy
+ have_bcs_chem = .true., .false.,        ! Read lateral chem BCs from wrfbdy_d01 on parent d01 only
  io_style_emissions = 2,                 ! Date/time specific emissions
- phot_opt = 4,                           ! TUV photolysis
+ phot_opt = 4, 4,                        ! TUV photolysis across active domains
 /
 ```
 
@@ -280,6 +286,10 @@ The operational WRF-Chem pipeline is completely decoupled from specific cloud in
 - **AWS ParallelCluster (`aws_pcluster.yaml`)**:
   - Partition: `hpc-mpi`, 32 tasks per node (c6i instances)
   - MPI / Fabric: Intel MPI with AWS Elastic Fabric Adapter (`I_MPI_DEBUG=5`, `FI_LOG_LEVEL=info`)
+  - Sourcing: `${HOME}/.commonrc` and `gogowrfchem`
+- **Azure RCCG (`azure_rccg.yaml`)**:
+  - Partition: `n1` (`Standard_HB120rs_v3`), 60 tasks per node with explicit `nproc_x: 6, nproc_y: 10` MPI decomposition
+  - MPI / Fabric: Intel MPI (`I_MPI_DEBUG=5`, `FI_LOG_LEVEL=info`, `WRF_LOG_BUFFERING=0`)
   - Sourcing: `${HOME}/.commonrc` and `gogowrfchem`
 - **Azure CycleCloud (`azure_cyclecloud.yaml`)**:
   - Partition: `hb120-hpc`, 60 tasks per node (Standard_HB120rs_v3 AMD Milan)

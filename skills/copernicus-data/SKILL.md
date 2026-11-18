@@ -147,7 +147,7 @@ Used alongside atmospheric composition (`cams_ghg: true` / `--ghg`) to inject hi
 
 ## 6. Memory-Safe Merging & Daily NetCDF Slicing
 
-Downstream modeling systems (`airblender cams2wrf` / `${AIRBLENDER_DIR}/cams2wrf_main.py`, `${OPER_FORECAST_DIR}/src/oper_forecast/preprocessing/prepare_cams_bc.sh`, and `airblender cams2wps`) expect daily files written by **`airblender.fetch`** (`airblender fetch-cams`, `airblender fetch-eac4`, `airblender fetch-era5-soil`, `airblender fetch-opendata`) named:
+Downstream modeling systems (`airblender cams2wrf` / `${AIRBLENDER_DIR}/cams2wrf_main.py`, `${OPER_FORECAST_DIR}/src/oper_forecast/preprocessing/prepare_cams_bc.sh`, and `airblender cams2wps`) expect daily files written by **`airblender.fetch`** (`airblender fetch-cams`, `airblender fetch-eac4`, `airblender fetch-ifs`, `airblender fetch-opendata`, `airblender fetch-era5-soil`, and NASA `airblender fetch-merra2`) named:
 ```
 ECMWF-CAMS_ml_{YYYYMMDD}.nc
 ECMWF-CAMS_sfc_{YYYYMMDD}.nc

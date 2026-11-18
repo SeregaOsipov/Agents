@@ -40,6 +40,25 @@ Follow these steps when preparing or deploying an ICON simulation:
    👉 *Reference:* [Grid Mapping & Processing](./references/grid_mapping.md)
 
 
+## Donor Forcing Acquisition (`airblender.fetch`)
+
+Meteorological, atmospheric composition, and soil initial/boundary donor streams for ICON (`INIT_MODE=2`) are packaged in `${AIRBLENDER_DIR}` (`pip install -e "${AIRBLENDER_DIR}[fetch]"`):
+
+- **ECMWF CAMS Atmospheric Composition Forecasts (137 levels + surface + optional GHG)**:
+  ```bash
+  airblender fetch-cams --start_date "${START_DATE}" --end_date "${END_DATE}" --data_root_folder "${CAMS_DIR}" --type forecast --time 00:00
+  ```
+- **ECMWF OpenData HRES 4-Layer Soil & Surface GRIB2 (`sol` / `sfc`)**:
+  ```bash
+  airblender fetch-opendata --mode sol --date "${START_DATE}" --outdir "${HRES_DIR}"
+  airblender fetch-opendata --mode sfc --date "${START_DATE}" --outdir "${HRES_DIR}"
+  ```
+- **ECMWF ERA5 Soil / Land & MARS IFS (`F1280`)**:
+  ```bash
+  airblender fetch-era5-soil --date "${START_DATE}" --outdir "${ERA5_DIR}"
+  airblender fetch-ifs --start_date "${START_DATE}" --end_date "${END_DATE}" --data_root_folder "${IFS_DIR}" --grid F1280 --retrieve_ml true
+  ```
+
 ## IFS Initialization (`INIT_MODE=2`) Gotchas
 
 When generating Initial Conditions (IC) from non-DWD sources (like ECMWF CAMS or ERA5 via CDS API) for `INIT_MODE=2`, ICON is extremely rigid. Follow these fixes to avoid obscure crashes:

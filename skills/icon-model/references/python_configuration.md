@@ -7,8 +7,8 @@ All core settings for a run are managed within a single configuration file.
 ```ini
 [ensemble]
 num_members = 10
-template_dir = /shared/scratch/sosipov39/simulations/ICON_run/da/art_global_r02b06_DUST_RAD_template
-ensemble_dir = /shared/scratch/sosipov39/simulations/ICON_run/da
+template_dir = ${SCRATCH_ROOT}/simulations/ICON_run/da/art_global_r02b06_DUST_RAD_template
+ensemble_dir = ${SCRATCH_ROOT}/simulations/ICON_run/da
 restart = False
 experiment_start_date = 2019-06-22T00:00:00Z
 current_cycle_start = 2019-06-22T00:00:00Z
