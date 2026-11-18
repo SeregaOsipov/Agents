@@ -96,11 +96,12 @@ Environmental modeling relies on native C/Fortran shared libraries (`libnetcdf`,
 
 | Variable | Description | Default / Example Location |
 | :--- | :--- | :--- |
-| `$AIRBLENDER_DIR` | Unified atmosphere/chemistry/aerosol coupler (`cams2wrf`, `merra2wrf`, `emac2wrf`, `cams2wps`, `wrf2palm`) | `${HOME}/workspace/AirBlender` |
+| `$AIRBLENDER_DIR` | Unified atmosphere/chemistry/aerosol coupler & donor fetcher (`cams2wrf`, `merra2wrf`, `emac2wrf`, `cams2wps`, `wrf2palm`, `fetch-*`) | `${HOME}/workspace/AirBlender` |
 | `$CLIMPY_DIR` | ClimPy utilities library (optional, e.g. ICON namelist tools) | `${HOME}/workspace/ClimPy` |
 
-Install `airblender` editable in your mamba env (`pip install --no-deps --no-build-isolation -e "${AIRBLENDER_DIR}"`) and run via CLI or Python API:
+Install `airblender` editable in your mamba env (`pip install --no-deps --no-build-isolation -e "${AIRBLENDER_DIR}"`, or `"${AIRBLENDER_DIR}[fetch]"` when donor download dependencies are needed) and run via CLI or Python API:
 ```bash
+airblender fetch-cams ...
 airblender cams2wrf ...
 ```
 

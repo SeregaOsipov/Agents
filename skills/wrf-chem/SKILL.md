@@ -126,7 +126,7 @@ Target run directory: `${WRF_WORK_DIR}/${RUN_NAME}/`
 ### C. Chemical & Aerosol IC/BC Preparation (`AirBlender`)
 *Prompt the user for `$AIRBLENDER_DIR` (if not pip-installed) and `$CAMS_DIR` if not defined.*
 
-WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` (plus nested `wrfinput_d0*`) and `wrfbdy_d01` in-place using **`airblender`** (standalone package with zero `ClimPy`/`wrf-python` runtime dependency):
+WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` (plus nested `wrfinput_d0*`) and `wrfbdy_d01` in-place using **`airblender`** (standalone package with zero `ClimPy`/`wrf-python` runtime dependency; optional `airblender[fetch]` also provides `airblender fetch-cams` / `fetch-eac4` / `fetch-merra2` for downloading raw donor fields):
 
    - Inject CAMS reactive gases, aerosols, and `0.1°` greenhouse gases (`CO2`, `CH4`) via `airblender cams2wrf` (`airblender.wrf_icbc.run_wrf_icbc`, legacy wrapper `${AIRBLENDER_DIR}/cams2wrf_main.py`):
      - Primary donor streams: `ECMWF-CAMS_sfc_YYYYMMDD.nc`, `ECMWF-CAMS_ml_YYYYMMDD.nc`, and (when `cams_ghg: true`) `ECMWF-CAMS_ghg_YYYYMMDD.nc`.

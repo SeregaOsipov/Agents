@@ -147,12 +147,13 @@ Used alongside atmospheric composition (`cams_ghg: true` / `--ghg`) to inject hi
 
 ## 6. Memory-Safe Merging & Daily NetCDF Slicing
 
-Downstream modeling systems (`airblender cams2wrf` / `${AIRBLENDER_DIR}/cams2wrf_main.py`, `${OPER_FORECAST_DIR}/src/oper_forecast/preprocessing/prepare_cams_bc.sh`, and `airblender cams2wps`) expect daily files named:
+Downstream modeling systems (`airblender cams2wrf` / `${AIRBLENDER_DIR}/cams2wrf_main.py`, `${OPER_FORECAST_DIR}/src/oper_forecast/preprocessing/prepare_cams_bc.sh`, and `airblender cams2wps`) expect daily files written by **`airblender.fetch`** (`airblender fetch-cams`, `airblender fetch-eac4`, `airblender fetch-era5-soil`, `airblender fetch-opendata`) named:
 ```
 ECMWF-CAMS_ml_{YYYYMMDD}.nc
 ECMWF-CAMS_sfc_{YYYYMMDD}.nc
 ECMWF-CAMS_ghg_{YYYYMMDD}.nc   # When cams_ghg: true (0.1 deg CO2 & CH4)
 ```
+Install fetcher extras via `pip install -e "${AIRBLENDER_DIR}[fetch]"` (e.g. `airblender fetch-cams --start_date ... --end_date ... --data_root_folder ... --type forecast --time 00:00 --ghg`).
 Because a 5-day 3D CAMS forecast spans ~500 GB uncompressed across 41 lead times:
 1. Open converted per-chunk NetCDFs lazily using Dask chunking along time: `xr.open_dataset(fp, chunks={"forecast_period": 1})`.
 2. Concatenate `met` chunks and `chem` chunks along `forecast_period` with `data_vars="minimal", coords="minimal", compat="override"`, sort by `forecast_period`, and merge via `xr.merge([ds_met, ds_chem], compat="override")`.
