@@ -114,3 +114,33 @@ Python modeling frameworks should strictly separate scientific domain definition
 1. **Model Configuration (`config/models/*.yaml`)**: Contains domain dimensions, physics options, chemical mechanisms, cycle dates, and relative input paths.
 2. **Cluster Platform Configuration (`config/clusters/*.yaml`)**: Contains cluster filesystem mounts (`scratch_dir`, `data_dir`), Slurm scheduler specifications (partitions, node counts, tasks per node), environment module activations, and MPI runtime flags (`I_MPI_DEBUG` vs `UCX_NET_DEVICES`).
 3. **Unified Loader (`config_loader.py`)**: Merges model and cluster YAMLs at runtime, injecting platform base paths into `${SCRATCH}` and `${DATA_DIR}` so the scientific model configuration remains 100% cloud- and platform-agnostic.
+
+---
+
+## 6. Publication Figure Standards (Nature Guidelines)
+
+When generating figures intended for journal submission (Nature / Nature Portfolio style):
+
+1. **No Main / Super Titles**:
+   * **Never** include a main figure title or `fig.suptitle(...)` / `ax.set_title(...)` for the overall figure canvas.
+   * Titles and detailed explanations belong strictly in the figure caption within the manuscript text.
+
+2. **Panel Labeling**:
+   * Multi-panel figures should label subpanels with lowercase letters: `a`, `b`, `c`, `d`, etc. (e.g., `(a)`, `(b)` or `a`, `b` anchored in the upper-left corner of each panel).
+   * Panel titles should be unbolded, concise, and minimal.
+
+3. **Geospatial Context & Backgrounds**:
+   * For domain maps, observation swaths, and cruise tracks, include realistic surface reflectance backgrounds (e.g., NASA GIBS MODIS Aqua L3 Surface Reflectance or BlueMarble) to ground models in real-world geography.
+   * Coordinate axes, coastlines, and national borders should use subtle, high-contrast line styles (e.g. white or thin dark lines) over satellite imagery.
+   * **Cartopy Reprojection Resolution & Ordering**: Cartopy's `GeoAxes.imshow` defaults `regrid_shape` to 750 pixels and internally queries `ax.get_extent()` to define the target warp bounds. If `ax.set_xlim` and `ax.set_ylim` (or `ax.set_extent`) are not established **before** `ax.imshow(...)`, Cartopy regrids across the default hemispheric extent (~38,000 km), wasting >95% of the pixel density outside the modeling domain. Always set domain limits on the axes *before* `ax.imshow(...)`, specify `regrid_shape=4000`, and use `interpolation='lanczos'` to preserve full native resolution without quality loss.
+
+4. **Colorbars & Layout**:
+   * Colorbars must be strictly contained within individual panel bounds (never span wider than the panel width or create trailing white gaps).
+   * Explicitly display both variable name and units (e.g. `Emissions [kg / h]`, `Relative Change`).
+   * Diverging colorbars must center neutral/white at 0 (for differences) or 1.0 (for ratios/scaling factors).
+
+5. **Export & Resolution**:
+   * Minimum resolution: 300 DPI for raster (`.png`), or export as vector (`.pdf`, `.svg`).
+   * Always save with `bbox_inches='tight'`.
+   * Standard typography: Helvetica/Arial or sans-serif, 7–9 pt for ticks, legends, and labels; 9–10 pt for panel identifiers.
+
