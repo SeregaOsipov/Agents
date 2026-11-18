@@ -1,7 +1,7 @@
 ---
 name: wrf-chem
 description: >-
-  Use this skill when configuring, compiling, executing, or debugging the WRF-Chem (Weather Research and Forecasting model with Chemistry) atmospheric modeling system on HPC or cloud clusters (e.g. AWS ParallelCluster, Slurm). Covers Intel oneAPI compilation, namelist.input configuration, chemical/aerosol IC/BC injection via Merra2BC (cams2wrf), auxiliary inputs (HERMESv3 emissions, SST updates, FDDA), and multi-node MPI execution. All paths are parameterized; ask the user for any missing paths.
+  Use this skill when configuring, compiling, executing, or debugging the WRF-Chem (Weather Research and Forecasting model with Chemistry) atmospheric modeling system on HPC or cloud clusters (e.g. AWS ParallelCluster, Slurm). Covers Intel oneAPI compilation, namelist.input configuration, chemical/aerosol IC/BC injection via AirBlender (cams2wrf/merra2wrf/emac2wrf), auxiliary inputs (HERMESv3 emissions, SST updates, FDDA), and multi-node MPI execution. All paths are parameterized; ask the user for any missing paths.
 ---
 
 # WRF-Chem Model Execution & Operational Forecasting
@@ -23,7 +23,7 @@ This skill serves as the primary operational runbook for configuring, compiling,
 | `$WRF_DIR` | WRF source and build root directory | `${HOME}/Models/WRF` |
 | `$WRF_WORK_DIR` | Working scratch directory for WRF-Chem execution | `${SCRATCH}/simulations/WRF_run/operational_forecast` |
 | `$TEMPLATE_DIR` | Baseline functional WRF run directory (tables, namelist) | `${SCRATCH}/simulations/WRF_run/run_ag_2026` |
-| `$MERRA2BC_DIR` | Path to Merra2BC repository (cams2wrf / merra2wrf) | `${HOME}/workspace/Merra2BC` |
+| `$AIRBLENDER_DIR` | Path to AirBlender repository (`cams2wrf` / `merra2wrf` / `emac2wrf`) | `${HOME}/workspace/AirBlender` |
 | `$EMISSIONS_FILE` | Anthropogenic chemistry emissions file | `${DATA_ROOT}/emissions/HERMESv3_...nc` |
 | `$LOWINP_FILE` | Lower boundary conditions file (SST, sea-ice updates) | `${DATA_ROOT}/IC_BC/wrflowinp_d02` |
 | `$FDDA_FILE` | Analysis nudging file (optional) | `${DATA_ROOT}/IC_BC/wrffdda_d02` |
@@ -123,17 +123,17 @@ Target run directory: `${WRF_WORK_DIR}/${RUN_NAME}/`
    ```
 4. Verify `output_real.txt` or `rsl.error.0000` for `SUCCESS COMPLETE REAL_EM`.
 
-### C. Chemical & Aerosol IC/BC Preparation (`Merra2BC`)
-*Prompt the user for `$MERRA2BC_DIR` and `$CAMS_DIR` if not defined.*
+### C. Chemical & Aerosol IC/BC Preparation (`AirBlender`)
+*Prompt the user for `$AIRBLENDER_DIR` (if not pip-installed) and `$CAMS_DIR` if not defined.*
 
-WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` and `wrfbdy_d01` in-place using tools from `${MERRA2BC_DIR}`:
+WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` (plus nested `wrfinput_d0*`) and `wrfbdy_d01` in-place using **`airblender`** (standalone package with zero `ClimPy`/`wrf-python` runtime dependency):
 
-   - Inject CAMS reactive gases, aerosols, and `0.1°` greenhouse gases (`CO2`, `CH4`) via [`cams2wrf_main.py`](file:///home/osipovs/workspace/Merra2BC/cams2wrf_main.py):
+   - Inject CAMS reactive gases, aerosols, and `0.1°` greenhouse gases (`CO2`, `CH4`) via `airblender cams2wrf` (`airblender.wrf_icbc.run_wrf_icbc`, legacy wrapper `${AIRBLENDER_DIR}/cams2wrf_main.py`):
      - Primary donor streams: `ECMWF-CAMS_sfc_YYYYMMDD.nc`, `ECMWF-CAMS_ml_YYYYMMDD.nc`, and (when `cams_ghg: true`) `ECMWF-CAMS_ghg_YYYYMMDD.nc`.
-     - Mixed-grid `0.1°`/`0.4°` streams derive 3D hybrid midpoint pressure cleanly on target WRF interior and boundary coordinates (`_derive_stream_p_rho`), with automatic fallback to `ml` (`ch4_c`) for methane and edge-clamped vertical pressure interpolation.
+     - Mixed-grid `0.1°`/`0.4°` streams derive 3D hybrid midpoint pressure cleanly on target WRF interior and boundary coordinates (`CamsDonorAdapter.get_stream_pressure`), with automatic fallback to `ml` (`ch4_c`) for methane and edge-clamped vertical pressure interpolation.
      - Required CAMS `wrf_key` targets: trace gases, MADE/SORGAM aerosols (`so4ai/j`, `ecj`, `orgpai/j`, `soila`, `seas`), and GHGs (`co2`, `ch4` in `ppmv` paired with HERMESv3 `E_CO2` & `E_CH4` emissions).
 ```bash
-python -u "${MERRA2BC_DIR}/cams2wrf_main.py" \
+airblender cams2wrf \
     --start_date "${START_DATE}_00:00:00" \
     --end_date "${END_DATE}_00:00:00" \
     --hourly_interval "${HOURLY_INTERVAL}" \
@@ -147,10 +147,10 @@ python -u "${MERRA2BC_DIR}/cams2wrf_main.py" \
     --wrf_met_files_name_template "met_em.d01.{}.nc" \
     --wrf_met_files_date_format "%Y-%m-%d_%H_%M_%S"
 ```
-*(For NASA MERRA-2, use `merra2wrf_main.py` with analogous arguments).*
+*(For NASA MERRA-2 use `airblender merra2wrf --scheme made_sorgam|gocart|gocart_dust|mosaic_8bin`, and for EMAC/MESSy use `airblender emac2wrf` with analogous arguments).*
 
 > **Important Notes:**
-> 1. `cams2wrf_main.py` modifies `wrfinput` and `wrfbdy` **in place (`r+` mode)**.
+> 1. `airblender` (`cams2wrf` / `merra2wrf` / `emac2wrf`) modifies `wrfinput` and `wrfbdy` **in place (`r+` mode)**.
 > 2. **Photolysis Tables:** If using TUV photolysis (`phot_opt = 4`), ensure `DATAE1` and `DATAJ1` directories are populated from `${HOME}/Data/AirQuality/AQABA/DATAE1` (containing `1995Malicet_O3.txt`, `wmo85`, etc.).
 > 3. **Emissions Time Stamping:** When `io_style_emissions = 2`, WRF looks for `wrfchemi_d01_<date>`. The NetCDF `Times` variable in the emissions file must match the forecast cycle start date (`YYYY-MM-DD_00:00:00`).
 > 4. **Post-Injection Namelist Switch:** Immediately after IC/BC injection completes, update `chem_in_opt = 1, 1,` in `namelist.input` so `wrf.exe` reads the injected chemistry from `wrfinput_d01`.

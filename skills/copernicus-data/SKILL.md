@@ -79,7 +79,7 @@ def convert_grib_to_cdm_nc(grib_path: str, nc_path: str, is_3d: bool = False):
 
 > [!IMPORTANT]
 > 1. **Never Call `.transpose()`, `.sortby()`, or `xr.merge()` on All Unchunked `cfgrib` Variables in RAM Simultaneously**: A 2.7 GB CCSDS-compressed 3D GRIB file expands to >10 GB in float32 per copy; creating 5 copies across `transpose`/`merge`/`sortby`/`to_netcdf` can exceed 100 GB RAM and trigger the Linux OOM killer (`SIGKILL`). Always stream one `paramId` and one `forecast_period` index at a time and reuse `indexpath` across `paramId`s.
-> 2. **`read_keys=['pv']` is mandatory for 3D model levels**: Without `'read_keys': ['pv']`, `cfgrib` omits the `GRIB_pv` attribute on 3D variables, which breaks pressure-level derivation in [`cams_to_wps.py`](file:///home/osipovs/Models/operational-forecasting/src/oper_forecast/preprocessing/cams_to_wps.py), [`cams_utils.py`](file:///home/osipovs/workspace/ClimPy/climpy/utils/cams_utils.py), and [`prepare_cams_ic.sh`](file:///home/osipovs/Models/operational-forecasting/src/oper_forecast/preprocessing/prepare_cams_ic.sh).
+> 2. **`read_keys=['pv']` is mandatory for 3D model levels**: Without `'read_keys': ['pv']`, `cfgrib` omits the `GRIB_pv` attribute on 3D variables, which breaks pressure-level derivation in `airblender.cams2wps` (`${AIRBLENDER_DIR}/src/airblender/cams2wps.py`), `${CLIMPY_DIR}/climpy/utils/cams_utils.py`, and `${OPER_FORECAST_DIR}/src/oper_forecast/preprocessing/prepare_cams_ic.sh`.
 > 3. **C-Library Thread Safety**: `libeccodes` and `libnetcdf`/`libhdf5` are not thread-safe when invoked simultaneously across threads. Always wrap `convert_grib_to_cdm_nc` in a `threading.Lock()` and write to a `.tmp` file followed by `os.replace()`.
 
 ---
@@ -147,7 +147,7 @@ Used alongside atmospheric composition (`cams_ghg: true` / `--ghg`) to inject hi
 
 ## 6. Memory-Safe Merging & Daily NetCDF Slicing
 
-Downstream modeling systems ([`cams2wrf_main.py`](file:///home/osipovs/workspace/Merra2BC/cams2wrf_main.py), [`prepare_cams_bc.sh`](file:///home/osipovs/Models/operational-forecasting/src/oper_forecast/preprocessing/prepare_cams_bc.sh), and [`cams_to_wps.py`](file:///home/osipovs/Models/operational-forecasting/src/oper_forecast/preprocessing/cams_to_wps.py)) expect daily files named:
+Downstream modeling systems (`airblender cams2wrf` / `${AIRBLENDER_DIR}/cams2wrf_main.py`, `${OPER_FORECAST_DIR}/src/oper_forecast/preprocessing/prepare_cams_bc.sh`, and `airblender cams2wps`) expect daily files named:
 ```
 ECMWF-CAMS_ml_{YYYYMMDD}.nc
 ECMWF-CAMS_sfc_{YYYYMMDD}.nc

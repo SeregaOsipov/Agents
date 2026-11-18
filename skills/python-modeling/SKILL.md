@@ -84,25 +84,24 @@ Environmental modeling relies on native C/Fortran shared libraries (`libnetcdf`,
   ```
 
 ### Direct I/O & Formats
-* **NetCDF4**: `netCDF4.Dataset` for in-place binary mutations (e.g. `cams2wrf` updating `wrfinput`/`wrfbdy`).
+* **NetCDF4**: `netCDF4.Dataset` for in-place binary mutations (e.g. `airblender` updating `wrfinput`/`wrfbdy`).
 * **GRIB / GRIB2**: `eccodes` and `cfgrib` (or `wgrib2` CLI for batch preprocessing).
 * **Regridding**: `scipy.interpolate` (`RectBivariateSpline`, `interp1d`) and CDO (`cdo-python` or `cdo remapcon`).
 
 ---
 
-## 4. Workspace Repositories & `PYTHONPATH`
+## 4. Workspace Repositories & Package Installation
 
-Key workspace utilities must be referenced via parameterized environment variables:
+`AirBlender` (`airblender`) is a standalone installable package with zero `ClimPy` or `wrf-python` runtime dependencies. When referencing source checkouts via environment variables:
 
 | Variable | Description | Default / Example Location |
 | :--- | :--- | :--- |
-| `$CLIMPY_DIR` | ClimPy environmental utilities library | `${HOME}/workspace/ClimPy` |
-| `$MERRA2BC_DIR` | Initial & boundary condition generator | `${HOME}/workspace/Merra2BC` |
+| `$AIRBLENDER_DIR` | Unified atmosphere/chemistry/aerosol coupler (`cams2wrf`, `merra2wrf`, `emac2wrf`, `cams2wps`, `wrf2palm`) | `${HOME}/workspace/AirBlender` |
+| `$CLIMPY_DIR` | ClimPy utilities library (optional, e.g. ICON namelist tools) | `${HOME}/workspace/ClimPy` |
 
-When calling scripts from these repositories, ensure `PYTHONPATH` includes both packages:
+Install `airblender` editable in your mamba env (`pip install --no-deps --no-build-isolation -e "${AIRBLENDER_DIR}"`) and run via CLI or Python API:
 ```bash
-export PYTHONPATH="${CLIMPY_DIR}:${MERRA2BC_DIR}:${PYTHONPATH}"
-python -u "${MERRA2BC_DIR}/cams2wrf_main.py" ...
+airblender cams2wrf ...
 ```
 
 ---

@@ -118,10 +118,10 @@ WPS requires meteorological fields converted into the WPS intermediate format (`
 #### Method 1: Python Direct NetCDF Unpack (for ECMWF CAMS / MERRA-2)
 When driving WRF from NetCDF reanalysis or forecast streams, use direct intermediate converters:
 ```bash
-# Operational CAMS 137 Hybrid Level Converter (cams_to_wps.py):
+# Operational CAMS 137 Hybrid Level Converter (airblender.cams2wps / oper_forecast compatibility shim):
 # Computes 3D midpoint pressures using GRIB_pv (a_k, b_k), maps surface geopotential z to SOILHGT,
 # and integrates ECMWF OpenData 4-layer soil temperatures/moistures directly into FILE:YYYY-MM-DD_HH:
-python -m oper_forecast.preprocessing.cams_to_wps \
+airblender cams2wps \
     --sfc "${CAMS_SFC_FILE}" \
     --ml "${CAMS_ML_FILE}" \
     --soil "${OPENDATA_SOIL_FILE}" \
@@ -225,10 +225,10 @@ These tools write the binary record structure directly via `wrf_write` or Python
 
 ---
 
-## 5. Automated CAMS Hybrid-Level WPS Conversion (`cams_to_wps.py`)
+## 5. Automated CAMS Hybrid-Level WPS Conversion (`airblender.cams2wps`)
 
 In the operational forecasting pipeline, `ungrib.exe` is bypassed for ECMWF CAMS analysis and forecasts:
-1. **Direct WPS Binary Generation**: `cams_to_wps.py` unpacks 137 ECMWF hybrid sigma-pressure model levels and surface NetCDFs directly into Fortran unformatted WPS binary files (`FILE:YYYY-MM-DD_HH`).
+1. **Direct WPS Binary Generation**: `airblender.cams2wps.convert_cams_to_wps` unpacks 137 ECMWF hybrid sigma-pressure model levels and surface NetCDFs directly into Fortran unformatted WPS binary files (`FILE:YYYY-MM-DD_HH`).
 2. **Dynamic 3D Full-Pressure Calculation**: Midpoint layer pressures are calculated directly from hybrid coefficients ($a_k, b_k$) stored in `GRIB_pv` metadata.
 3. **Surface Geopotential to Height (`SOILHGT`)**: Converts `surface_geopotential` ($z$) into geopotential height (`SOILHGT = z / 9.80665`) and sets required metadata flags (`FLAG_SOILHGT: 1`, `FLAG_PSFC: 1`, `FLAG_SLP: 1`).
 4. **Platform-Independent Execution**:

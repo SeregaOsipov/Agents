@@ -108,7 +108,7 @@ Configure `${PALM_ROOT}/packages/palm/model/build/.palm.config.default`:
 
 ## 2. WRF-Chem to PALM-4U Dynamic Driver Conversion (`_dynamic`)
 
-Implemented in `src/oper_forecast/preprocessing/palm/wrf_to_palm_dynamic.py` (with conservative modal-to-sectional kernel in `salsa_remap.py`), supporting both `100 m` SLUrb (`palm_doha_100m.yaml`) and `10 m` building-resolving (`palm_doha_10m.yaml` / `palm_doha_chem.yaml`) tiers.
+Implemented in `AirBlender` (`airblender.palm_dynamic` + conservative modal-to-sectional kernel in `airblender.physics.salsa_remap`, exposed via `airblender wrf2palm` and thin `oper_forecast.preprocessing.palm` shims), supporting both `100 m` SLUrb (`palm_doha_100m.yaml`) and `10 m` building-resolving (`palm_doha_10m.yaml` / `palm_doha_chem.yaml`) tiers.
 
 ### A. Parent Domain Selection, Grid Mapping & Sub-Cropping
 - Automatically selects `${WRF_OUTPUT_DIR}` **`wrfout_d02_*`** (`2 km`) when it encloses the PALM bounding box and covers the forecast window, falling back cleanly to **`wrfout_d01_*`** (`10 km`), and crops the WRF horizontal window around the PALM target box (`pad_cells = 3`).
@@ -124,7 +124,7 @@ Implemented in `src/oper_forecast/preprocessing/palm/wrf_to_palm_dynamic.py` (wi
 - **YAML-Selectable Simulation Modes (`chemistry.palm_mode`)**:
   1. **`phstatp-salsa` (default, `115` fields, `absolute_mass_number_v1` schema)**:
      - **Meteorology + PHSTATP**: LOD2 `u`, `v`, `w`, `pt`, `qv`, `surface_forcing_surface_pressure`, plus `no`, `no2`, `o3` (`ppmv` $\rightarrow$ `ppm`) and `PM10` ($\mu\text{g/m}^3 \rightarrow \text{kg/m}^3$, set `bc_cs_t = 'dirichlet'`).
-     - **Conservative 7-Species × 10-Bin WRF–SALSA Remapping (`salsa_remap.py`)**: Maps 41 WRF MADE/SORGAM+GOCART mass fields and 3 modal numbers (`nu0`, `ac0`, `corn`) onto 10 sectional SALSA bins (`3–50 nm`, `50 nm–10 µm`) and **7 dry components (`SO4, OC, BC, DU, SS, NO, NH`)** in `kg/m³` and `#/m³`.
+     - **Conservative 7-Species × 10-Bin WRF–SALSA Remapping (`airblender.physics.salsa_remap`)**: Maps 41 WRF MADE/SORGAM+GOCART mass fields and 3 modal numbers (`nu0`, `ac0`, `corn`) onto 10 sectional SALSA bins (`3–50 nm`, `50 nm–10 µm`) and **7 dry components (`SO4, OC, BC, DU, SS, NO, NH`)** in `kg/m³` and `#/m³`.
      - **`antha` Exclusion & Audit Budgets**: Excludes unspeciated coarse anthropogenic `antha` (`antha_policy: exclude`), writes `*_unresolved_aerosol_mass` diagnostics, and floors the 5 SALSA precursor gases (`H2SO4`, `HNO3`, `NH3`, `OCNV`, `OCSV`) at `1.0 #/m³` when `nlcnd = .FALSE.`, `nsnucl = 0`.
   2. **`phstatp` (`55` fields)**: Strips `&salsa_parameters` and `salsa_*` outputs for gas-phase chemistry + passive `PM10` only.
   3. **`meteorology` (`31` fields)**: Strips both `&chemistry_parameters` and `&salsa_parameters` for pure 3D urban flow/thermodynamics.
