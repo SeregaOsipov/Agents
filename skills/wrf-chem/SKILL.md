@@ -128,6 +128,10 @@ Target run directory: `${WRF_WORK_DIR}/${RUN_NAME}/`
 
 WRF-Chem initial and boundary conditions are created by modifying baseline meteorological `wrfinput_d01` and `wrfbdy_d01` in-place using tools from `${MERRA2BC_DIR}`:
 
+   - Inject CAMS reactive gases, aerosols, and `0.1°` greenhouse gases (`CO2`, `CH4`) via [`cams2wrf_main.py`](file:///home/osipovs/workspace/Merra2BC/cams2wrf_main.py):
+     - Primary donor streams: `ECMWF-CAMS_sfc_YYYYMMDD.nc`, `ECMWF-CAMS_ml_YYYYMMDD.nc`, and (when `cams_ghg: true`) `ECMWF-CAMS_ghg_YYYYMMDD.nc`.
+     - Mixed-grid `0.1°`/`0.4°` streams derive 3D hybrid midpoint pressure cleanly on target WRF interior and boundary coordinates (`_derive_stream_p_rho`), with automatic fallback to `ml` (`ch4_c`) for methane and edge-clamped vertical pressure interpolation.
+     - Required CAMS `wrf_key` targets: trace gases, MADE/SORGAM aerosols (`so4ai/j`, `ecj`, `orgpai/j`, `soila`, `seas`), and GHGs (`co2`, `ch4` in `ppmv` paired with HERMESv3 `E_CO2` & `E_CH4` emissions).
 ```bash
 python -u "${MERRA2BC_DIR}/cams2wrf_main.py" \
     --start_date "${START_DATE}_00:00:00" \
@@ -140,8 +144,8 @@ python -u "${MERRA2BC_DIR}/cams2wrf_main.py" \
     --wrf_input wrfinput_d01 \
     --wrf_bdy_file wrfbdy_d01 \
     --wrf_met_dir "${MET_EM_DIR}" \
-    --wrf_met_files "met_em.d01.*" \
-    --wrf_met_files_date_format "%Y-%m-%d_%H:%M:%S"
+    --wrf_met_files_name_template "met_em.d01.{}.nc" \
+    --wrf_met_files_date_format "%Y-%m-%d_%H_%M_%S"
 ```
 *(For NASA MERRA-2, use `merra2wrf_main.py` with analogous arguments).*
 
@@ -160,8 +164,9 @@ Key namelist switches for operational chemistry forecasts:
  start_year = ${START_YEAR}, start_month = ${START_MONTH}, start_day = ${START_DAY}, start_hour = ${START_HOUR},
  end_year   = ${END_YEAR},   end_month   = ${END_MONTH},   end_day   = ${END_DAY},   end_hour   = ${END_HOUR},
  interval_seconds = ${INTERVAL_SECONDS}, ! e.g. 10800 for 3-hourly boundary updates
- history_interval = ${HISTORY_INTERVAL}, ! e.g. 60 for 1-hourly output
- io_form_history  = 11,                  ! Parallel NetCDF (pnetcdf)
+ history_interval = ${HISTORY_INTERVAL}, ! e.g. 10, 10, for 10-minute operational cadence across d01/d02
+ frames_per_outfile = ${FRAMES_PER_OUTFILE}, ! e.g. 36, 36, (6h per file at 10-min cadence)
+ io_form_history  = 2,                   ! 2 (Standard NetCDF) when compiled without pnetcdf; 11 for pnetcdf
  io_form_input    = 2,                   ! Standard NetCDF
  io_form_boundary = 2,
  force_use_old_data = .true.,
@@ -169,7 +174,7 @@ Key namelist switches for operational chemistry forecasts:
 /
 
 &domains
- max_dom = ${MAX_DOM},
+ max_dom = ${MAX_DOM},                   ! e.g. 2 for nested 10 km d01 + 2 km d02
  e_we = ${E_WE},
  e_sn = ${E_SN},
  e_vert = ${E_VERT},

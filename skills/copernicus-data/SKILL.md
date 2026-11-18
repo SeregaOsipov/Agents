@@ -136,6 +136,13 @@ Dataset ID: `cams-global-atmospheric-composition-forecasts`
   * **Before `10:00 UTC` (`13:00 UTC+3`)**: Requesting `"today"` (`date: YYYY-MM-DD/YYYY-MM-DD`) fails immediately with `400 Client Error: Bad Request: Request has not produced a valid combination of values` because ADS `maxEnd` is still `"yesterday"`. Morning runs must use `"yesterday"`.
   * **After `10:00 UTC` (`13:00 UTC+3`)**: Requesting `"today"` with `type: 'forecast'` and `time: '00:00'` **is allowed and succeeds** (e.g., an evening operational schedule at `19:00 UTC+3` / `16:00 UTC` runs 6 hours after the `00:00 UTC` forecast is published on ADS).
 
+### 5b. CAMS Global Greenhouse Gas Forecasts (`cams-global-greenhouse-gas-forecasts`)
+Used alongside atmospheric composition (`cams_ghg: true` / `--ghg`) to inject high-resolution **`0.1°` 3D `CO2` & `CH4`** initial/boundary conditions:
+* **Dataset ID**: `cams-global-greenhouse-gas-forecasts` (`type: 'forecast'` only, **`00:00 UTC`** base time only).
+* **Variables & Vertical Levels**: `['carbon_dioxide', 'methane']` across all `137` model levels (`GRIB_pv` preserved via `read_keys=['pv']` for hybrid midpoint pressure reconstruction alongside `sfc` surface pressure `sp`, even though GHG is `0.1°` vs `0.4°` composition).
+* **Dense Request Packing**: `2 vars × 137 levels = 274 fields/lt` → up to `36` lead times fit per request under `10,000` fields (e.g., `cams_ghg_lt_chunk: 24` = `6,576` fields/request, `2` requests for `0..120 h`).
+* **Availability & Output File**: Publishes slightly later than atmospheric composition (typical release delay ~13.5h after cycle init, or 1–2 day lag during upstream NRT maintenance); saved locally as **`ECMWF-CAMS_ghg_{YYYYMMDD}.nc`** and pruned automatically alongside `ml`/`sfc` under retention rules.
+
 ---
 
 ## 6. Memory-Safe Merging & Daily NetCDF Slicing
@@ -144,6 +151,7 @@ Downstream modeling systems ([`cams2wrf_main.py`](file:///home/osipovs/workspace
 ```
 ECMWF-CAMS_ml_{YYYYMMDD}.nc
 ECMWF-CAMS_sfc_{YYYYMMDD}.nc
+ECMWF-CAMS_ghg_{YYYYMMDD}.nc   # When cams_ghg: true (0.1 deg CO2 & CH4)
 ```
 Because a 5-day 3D CAMS forecast spans ~500 GB uncompressed across 41 lead times:
 1. Open converted per-chunk NetCDFs lazily using Dask chunking along time: `xr.open_dataset(fp, chunks={"forecast_period": 1})`.
